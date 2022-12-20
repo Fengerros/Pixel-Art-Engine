@@ -82,13 +82,13 @@ int main()
         return -1;
     }
 
-    glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
+    glfwWindowHint(GLFW_SAMPLES, 8); // 4x antialiasing
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4); // We want OpenGL 3.3
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
     
-    window = glfwCreateWindow(width, height, "LEGO", NULL, NULL);
+    window = glfwCreateWindow(width, height, "Pixel-arting 3D", NULL, NULL);
     glfwMakeContextCurrent(window);
 
     // Initialize GLEW
@@ -225,7 +225,12 @@ int main()
 	// Enable depth test
 	glEnable(GL_DEPTH_TEST);
 	
-    // Run the main loop
+    
+    std::cout << "\nLoaded!\n\n";
+    std::cout << "gui - click the \"m\" key on your keyboard\n";
+    std::cout << "poligon mode - press the \"p\" key on your keyboard\n";
+    std::cout << "ESC to close app\n";
+
     do{
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
