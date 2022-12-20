@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -23,12 +27,13 @@
 
 GLFWwindow* window;
 
-float width = 1000.f;
-float height = 1000.f;
+float width = 900.f;
+float height = 900.f;
 
 glm::vec3 grid_size = glm::vec3(10, 10, 10); // x y z
 
-std::vector<std::vector<float>> blocks_positions_and_colors;
+std::vector<glm::vec3> block_position;
+std::vector<glm::vec3> block_color;
 
 std::vector<glm::vec3> grid_vertices;
 std::vector<glm::vec2> grid_uvs;
@@ -42,8 +47,33 @@ std::vector<glm::vec3> cube_vertices;
 std::vector<glm::vec2> cube_uvs;
 std::vector<glm::vec3> cube_normals;
 
+bool undo_pressed = false;
+bool first_mouse = false;
+bool mouse_visible = false;
+bool key_pressed = false;
+
+
+void set_block_position(glm::vec3 position, glm::vec3 color)
+{
+	block_position.push_back(position);
+	block_color.push_back(color);
+}
+
+void undo_block() {
+	if (block_position.size() > 0)
+	{
+		block_position.pop_back();
+		block_color.pop_back();
+	} 
+    else
+    {
+		std::cout << "No blocks to remove" << std::endl;
+    }
+}
+
 int main()
 {
+
     // Initialize GLFW and create a window
     glewExperimental = true; // Needed for core profile
     if (!glfwInit())
@@ -73,6 +103,13 @@ int main()
         fprintf(stderr, "Failed to initialize GLEW\n");
         return -1;
     }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 460");
 
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
@@ -123,16 +160,16 @@ int main()
 	
 
     bool grid_res = loadObj("Assets/grid.obj", grid_vertices, grid_uvs, grid_normals);
-
     GLuint grid_VBO, grid_VAO;
 
     glGenVertexArrays(1, &grid_VAO);
     glBindVertexArray(grid_VAO);
 
+    GLfloat* grid_color_buffer_data = new GLfloat[grid_vertices.size() * 3];
     for (int v = 0; v < grid_vertices.size(); v++) {
-        g_color_buffer_data[3 * v + 0] = 255;
-        g_color_buffer_data[3 * v + 1] = 255;
-        g_color_buffer_data[3 * v + 2] = 100;
+        grid_color_buffer_data[3 * v + 0] = 1;
+        grid_color_buffer_data[3 * v + 1] = 1;
+        grid_color_buffer_data[3 * v + 2] = 1;
     }
     glGenBuffers(1, &grid_VBO);
     glBindBuffer(GL_ARRAY_BUFFER, grid_VBO);
@@ -142,24 +179,25 @@ int main()
 
     glGenBuffers(1, &colorbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, grid_vertices.size() * 3 * sizeof(GLfloat), g_color_buffer_data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, grid_vertices.size() * 3 * sizeof(GLfloat), grid_color_buffer_data, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    bool cube_res = loadObj("Assets/cube.obj", cube_vertices, cube_uvs, cube_normals);
 
+    bool cube_res = loadObj("Assets/cube.obj", cube_vertices, cube_uvs, cube_normals);
     GLuint cube_VBO, cube_VAO;
 
     glGenVertexArrays(1, &cube_VAO);
     glBindVertexArray(cube_VAO);
 
+    GLfloat* cube_color_buffer_data = new GLfloat[cube_vertices.size() * 3];
     for (int v = 0; v < cube_vertices.size(); v++) {
-        g_color_buffer_data[3 * v + 0] = 255;
-        g_color_buffer_data[3 * v + 1] = 0;
-        g_color_buffer_data[3 * v + 2] = 100;
+        cube_color_buffer_data[3 * v + 0] = 0;
+        cube_color_buffer_data[3 * v + 1] = 0;
+        cube_color_buffer_data[3 * v + 2] = 0;
     }
     glGenBuffers(1, &cube_VBO);
     glBindBuffer(GL_ARRAY_BUFFER, cube_VBO);
@@ -169,7 +207,7 @@ int main()
 
     glGenBuffers(1, &colorbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
-    glBufferData(GL_ARRAY_BUFFER, cube_vertices.size() * 3 * sizeof(GLfloat), g_color_buffer_data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, cube_vertices.size() * 3 * sizeof(GLfloat), cube_color_buffer_data, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(1);
 
@@ -180,13 +218,38 @@ int main()
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 
     //cull face
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	glFrontFace(GL_CCW);
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
+	//glFrontFace(GL_CCW);
 
+	// Enable depth test
+	glEnable(GL_DEPTH_TEST);
+	
     // Run the main loop
     do{
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Start the ImGUI frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // Create a window for block insertion
+        ImGui::Begin("Insert Block");
+        static glm::vec3 block_pos = glm::vec3(0.0f, 0.0f, 0.0f);
+        static glm::vec3 block_col = glm::vec3(1.0f, 1.0f, 1.0f);
+        ImGui::InputFloat3("Position", &block_pos[0]);
+        ImGui::ColorEdit3("Color", &block_col[0]);
+        if (ImGui::Button("Insert"))
+        {
+            set_block_position(block_pos, block_col);
+        }
+        if (ImGui::Button("Undo"))
+        {
+            undo_block();
+        }
+        ImGui::End();
+
 
         if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -201,7 +264,33 @@ int main()
 		
         glUseProgram(programID);
 
-        computeMatricesFromInputs(window, width, height);
+        if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+            if (!key_pressed) {
+                mouse_visible = !mouse_visible;
+                if (mouse_visible) {
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
+                    first_mouse = true;
+                }
+                else {
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    if (first_mouse) {
+                        glfwSetCursorPos(window, width / 2, height / 2);
+                        glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+                        first_mouse = false;
+                    }
+                }
+                key_pressed = true;
+            }
+        }
+        else {
+            key_pressed = false;
+        }
+
+        if (!mouse_visible) {
+            computeMatricesFromInputs(window, width, height);
+        }
+		
         glm::mat4 ProjectionMatrix = getProjectionMatrix();
         glm::mat4 ViewMatrix = getViewMatrix();
         glm::mat4 ModelMatrix = glm::mat4(1.0);
@@ -213,39 +302,83 @@ int main()
         glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
         glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
 
-        // Draw the first square
-        glBindVertexArray(VAO);
-		glDrawArrays(GL_TRIANGLES, 0, FEGO_logo_vertices.size());
-        glBindVertexArray(0);
+        // Draw logo
+        //glBindVertexArray(VAO);
+		//glDrawArrays(GL_TRIANGLES, 0, FEGO_logo_vertices.size());
+        //glBindVertexArray(0);
 
-        // Draw the second square
         glBindVertexArray(grid_VAO);
-        //draw procedural ground with grid
 		for (int i = 0; i < 10; i++) {
 			for (int j = 0; j < 10; j++) {
-				ModelMatrix = glm::translate(glm::mat4(1.0), glm::vec3(i * 1, 0, j * 1));
+				ModelMatrix = glm::translate(glm::mat4(1.0), glm::vec3(i, 0, j));
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
 				glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
 				glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
+
+                if (i == 0 && j == 0) {
+                    for (int v = 0; v < grid_vertices.size(); v++) {
+                        grid_color_buffer_data[3 * v + 0] = 1;
+                        grid_color_buffer_data[3 * v + 1] = 0;
+                        grid_color_buffer_data[3 * v + 2] = 0;
+                    }
+                }
+                else
+                {
+                    for (int v = 0; v < grid_vertices.size(); v++) {
+                        grid_color_buffer_data[3 * v + 0] = 1;
+                        grid_color_buffer_data[3 * v + 1] = 1;
+                        grid_color_buffer_data[3 * v + 2] = 1;
+                    }
+                }
+
+                glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+                glBufferData(GL_ARRAY_BUFFER, grid_vertices.size() * 3 * sizeof(GLfloat), grid_color_buffer_data, GL_STATIC_DRAW);
+                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+                glEnableVertexAttribArray(1);
+
 				glDrawArrays(GL_TRIANGLES, 0, grid_vertices.size());
 			}
 		}
         glBindVertexArray(0);
 
-		if()
-        // Draw the second square
-        glBindVertexArray(cube_VAO);
-		
-        //draw procedural ground with grid
-         ModelMatrix = glm::translate(glm::mat4(1.0), glm::vec3(2 * 1, 0, 0 * 1));
-         MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-         glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-         glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
-         glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
-         glDrawArrays(GL_TRIANGLES, 0, cube_vertices.size());
 
-        glBindVertexArray(0);
+
+        if (block_position.size() != 0) {
+            for (int i = 0; i < block_position.size(); i++) {
+                // Draw the second square
+                glBindVertexArray(cube_VAO);
+
+                for (int v = 0; v < cube_vertices.size(); v++) {
+                    cube_color_buffer_data[3 * v + 0] = block_color[i].x;
+                    cube_color_buffer_data[3 * v + 1] = block_color[i].y;
+                    cube_color_buffer_data[3 * v + 2] = block_color[i].z;
+                }
+
+                glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+                glBufferData(GL_ARRAY_BUFFER, cube_vertices.size() * 3 * sizeof(GLfloat), cube_color_buffer_data, GL_STATIC_DRAW);
+                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+                glEnableVertexAttribArray(1);
+
+                ModelMatrix = glm::translate(glm::mat4(1.0), block_position[i]);
+                MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
+                glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+                glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
+                glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
+                glDrawArrays(GL_TRIANGLES, 0, cube_vertices.size());
+
+                glBindVertexArray(0);
+            }
+        }
+        else
+        {
+            //debug
+            //std::cout << "lista pusta\n";
+        }
+
+        // Render ImGUI
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         // Swap the buffers
         glfwSwapBuffers(window);
@@ -256,6 +389,11 @@ int main()
     glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &fego_logo);
     glfwTerminate();
+
+    // Cleanup ImGUI
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     return 0;
 }
