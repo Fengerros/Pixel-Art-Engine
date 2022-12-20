@@ -87,6 +87,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     
     window = glfwCreateWindow(width, height, "Pixel-arting 3D", NULL, NULL);
     glfwMakeContextCurrent(window);
@@ -243,8 +244,14 @@ int main()
         ImGui::Begin("Insert Block");
         static glm::vec3 block_pos = glm::vec3(0.0f, 0.0f, 0.0f);
         static glm::vec3 block_col = glm::vec3(1.0f, 1.0f, 1.0f);
+        static glm::vec2 grid_size = glm::vec2(10.0f, 10.0f);
+        static glm::vec3 grid_col = glm::vec3(1.0f, 1.0f, 1.0f);
+        static glm::vec3 grid_start_col = glm::vec3(1.0f, 0.0f, 0.0f);
+        static glm::vec3 app_back_col = glm::vec3(0.2f, 0.3f, 0.3f);
+        
         ImGui::InputFloat3("Position", &block_pos[0]);
         ImGui::ColorEdit3("Color", &block_col[0]);
+        
         if (ImGui::Button("Insert"))
         {
             set_block_position(block_pos, block_col);
@@ -253,6 +260,15 @@ int main()
         {
             undo_block();
         }
+
+        ImGui::Text("App Setting");
+        ImGui::ColorEdit3("App background color", &app_back_col[0]);
+
+        ImGui::Text("Grid Setting");
+        ImGui::InputFloat2("Grid size", &grid_size[0]);
+        ImGui::ColorEdit3("Grid color", &grid_col[0]);
+        ImGui::ColorEdit3("Grid start color", &grid_start_col[0]);
+        
         ImGui::End();
 
 
@@ -313,8 +329,8 @@ int main()
         //glBindVertexArray(0);
 
         glBindVertexArray(grid_VAO);
-		for (int i = 0; i < 10; i++) {
-			for (int j = 0; j < 10; j++) {
+		for (int i = 0; i < grid_size.x; i++) {
+			for (int j = 0; j < grid_size.y; j++) {
 				ModelMatrix = glm::translate(glm::mat4(1.0), glm::vec3(i, 0, j));
 				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 				glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
@@ -323,17 +339,17 @@ int main()
 
                 if (i == 0 && j == 0) {
                     for (int v = 0; v < grid_vertices.size(); v++) {
-                        grid_color_buffer_data[3 * v + 0] = 1;
-                        grid_color_buffer_data[3 * v + 1] = 0;
-                        grid_color_buffer_data[3 * v + 2] = 0;
+                        grid_color_buffer_data[3 * v + 0] = grid_start_col[0];
+                        grid_color_buffer_data[3 * v + 1] = grid_start_col[1];
+                        grid_color_buffer_data[3 * v + 2] = grid_start_col[2];
                     }
                 }
                 else
                 {
                     for (int v = 0; v < grid_vertices.size(); v++) {
-                        grid_color_buffer_data[3 * v + 0] = 1;
-                        grid_color_buffer_data[3 * v + 1] = 1;
-                        grid_color_buffer_data[3 * v + 2] = 1;
+                        grid_color_buffer_data[3 * v + 0] = grid_col[0];
+                        grid_color_buffer_data[3 * v + 1] = grid_col[1];
+                        grid_color_buffer_data[3 * v + 2] = grid_col[2];
                     }
                 }
 
@@ -387,6 +403,8 @@ int main()
 
         // Swap the buffers
         glfwSwapBuffers(window);
+
+        glClearColor(app_back_col.x, app_back_col.y, app_back_col.z, 1.0f);
     } while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
         glfwWindowShouldClose(window) == 0);
 
