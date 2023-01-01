@@ -126,8 +126,16 @@ int main()
 
     // Get a handle for our "MVP" uniform
     GLuint MatrixID = glGetUniformLocation(programID, "MVP");
-    GLuint View = glGetUniformLocation(programID, "View");
-    GLuint Model = glGetUniformLocation(programID, "View");
+	
+	GLuint ProjectionID = glGetUniformLocation(programID, "Projection");
+    GLuint ViewID = glGetUniformLocation(programID, "View");
+    GLuint ModelID = glGetUniformLocation(programID, "Model");
+
+	GLuint LightDirectionID = glGetUniformLocation(programID, "LightDirection");
+    GLuint LightPositionID = glGetUniformLocation(programID, "LightPosition");
+    GLuint AmbientID = glGetUniformLocation(programID, "ambient_color");
+    GLuint DiffuseID = glGetUniformLocation(programID, "diffuse_color");
+    GLuint SpecularID = glGetUniformLocation(programID, "specular_color");
 
     bool res = loadObj("Assets/FEGO-logo.obj", FEGO_logo_vertices, FEGO_logo_uvs, FEGO_logo_normals);
 
@@ -184,6 +192,13 @@ int main()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(1);
 
+	GLuint grid_normal;
+	glGenBuffers(1, &grid_normal);
+	glBindBuffer(GL_ARRAY_BUFFER, grid_normal);
+	glBufferData(GL_ARRAY_BUFFER, grid_normals.size() * sizeof(glm::vec3), &grid_normals[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(2);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -211,6 +226,13 @@ int main()
     glBufferData(GL_ARRAY_BUFFER, cube_vertices.size() * 3 * sizeof(GLfloat), cube_color_buffer_data, GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(1);
+
+	GLuint cube_normal;
+	glGenBuffers(1, &cube_normal);
+	glBindBuffer(GL_ARRAY_BUFFER, cube_normal);
+	glBufferData(GL_ARRAY_BUFFER, cube_normals.size() * sizeof(glm::vec3), &cube_normals[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glEnableVertexAttribArray(2);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -248,6 +270,11 @@ int main()
         static glm::vec3 grid_col = glm::vec3(1.0f, 1.0f, 1.0f);
         static glm::vec3 grid_start_col = glm::vec3(1.0f, 0.0f, 0.0f);
         static glm::vec3 app_back_col = glm::vec3(0.2f, 0.3f, 0.3f);
+        static glm::vec3 light_dir = glm::vec3(0.0f, 0.0f, 0.0f);
+        static glm::vec3 light_pos = glm::vec3(0.0f, 0.0f, 0.0f);
+        static glm::vec3 ambient_col = glm::vec3(0.0f, 0.0f, 0.0f);
+        static glm::vec3 diffuse_col = glm::vec3(1.0f, 1.0f, 1.0f);
+        static glm::vec3 specular_col = glm::vec3(1.0f, 1.0f, 1.0f);
         
         ImGui::InputFloat3("Position", &block_pos[0]);
         ImGui::ColorEdit3("Color", &block_col[0]);
@@ -261,14 +288,20 @@ int main()
             undo_block();
         }
 
-        ImGui::Text("App Setting");
+        ImGui::Text("App Settings");
         ImGui::ColorEdit3("App background color", &app_back_col[0]);
 
-        ImGui::Text("Grid Setting");
+        ImGui::Text("Grid Settings");
         ImGui::InputFloat2("Grid size", &grid_size[0]);
         ImGui::ColorEdit3("Grid color", &grid_col[0]);
         ImGui::ColorEdit3("Grid start color", &grid_start_col[0]);
         
+        ImGui::Text("Light Settings");
+		ImGui::InputFloat3("Light Direction", &light_dir[0]);
+        ImGui::InputFloat3("Light Position", &light_pos[0]);
+		ImGui::ColorEdit3("Ambient Color", &ambient_col[0]);
+		ImGui::ColorEdit3("Diffuse Color", &diffuse_col[0]);
+		ImGui::ColorEdit3("Specular Color", &specular_col[0]);
         ImGui::End();
 
 
@@ -310,8 +343,10 @@ int main()
 
         if (!mouse_visible) {
             computeMatricesFromInputs(window, width, height);
+            //light_dir = getPlayerDirection();
+            light_pos = glm::vec3(getPlayerPosition().x, getPlayerPosition().y, getPlayerPosition().z);
         }
-		
+
         glm::mat4 ProjectionMatrix = getProjectionMatrix();
         glm::mat4 ViewMatrix = getViewMatrix();
         glm::mat4 ModelMatrix = glm::mat4(1.0);
@@ -319,9 +354,15 @@ int main()
 
         // Send our transformation to the currently bound shader,
         // in the "MVP" uniform
-        glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-        glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
-        glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
+		glUniformMatrix4fv(ProjectionID, 1, GL_FALSE, &ProjectionMatrix[0][0]);
+        glUniformMatrix4fv(ViewID, 1, GL_FALSE, &ViewMatrix[0][0]);
+        glUniformMatrix4fv(ModelID, 1, GL_FALSE, &ModelMatrix[0][0]);
+		
+		glUniform3f(LightDirectionID, light_dir.x, light_dir.y, light_dir.z);
+        glUniform3f(LightPositionID, light_pos.x, light_pos.y, light_pos.z);
+		glUniform3f(AmbientID, ambient_col.x, ambient_col.y, ambient_col.z);
+		glUniform3f(DiffuseID, diffuse_col.x, diffuse_col.y, diffuse_col.z);
+		glUniform3f(SpecularID, specular_col.x, specular_col.y, specular_col.z);
 
         // Draw logo
         //glBindVertexArray(VAO);
@@ -332,10 +373,9 @@ int main()
 		for (int i = 0; i < grid_size.x; i++) {
 			for (int j = 0; j < grid_size.y; j++) {
 				ModelMatrix = glm::translate(glm::mat4(1.0), glm::vec3(i, 0, j));
-				MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
-				glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-				glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
-				glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
+                glUniformMatrix4fv(ProjectionID, 1, GL_FALSE, &ProjectionMatrix[0][0]);
+				glUniformMatrix4fv(ViewID, 1, GL_FALSE, &ViewMatrix[0][0]);
+				glUniformMatrix4fv(ModelID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
                 if (i == 0 && j == 0) {
                     for (int v = 0; v < grid_vertices.size(); v++) {
@@ -384,8 +424,8 @@ int main()
                 ModelMatrix = glm::translate(glm::mat4(1.0), block_position[i]);
                 MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
                 glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-                glUniformMatrix4fv(View, 1, GL_FALSE, &ViewMatrix[0][0]);
-                glUniformMatrix4fv(Model, 1, GL_FALSE, &ModelMatrix[0][0]);
+                glUniformMatrix4fv(ViewID, 1, GL_FALSE, &ViewMatrix[0][0]);
+                glUniformMatrix4fv(ModelID, 1, GL_FALSE, &ModelMatrix[0][0]);
                 glDrawArrays(GL_TRIANGLES, 0, cube_vertices.size());
 
                 glBindVertexArray(0);

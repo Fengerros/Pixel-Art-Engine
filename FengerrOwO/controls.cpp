@@ -128,3 +128,15 @@ void computeMatricesFromInputs(GLFWwindow* window, float width, float height) {
 	// For the next frame, the "last time" will be "now"
 	lastTime = currentTime;
 }
+
+glm::vec3 getPlayerDirection() {
+	return glm::vec3(
+		cos(verticalAngle) * sin(horizontalAngle),
+		sin(verticalAngle),
+		cos(verticalAngle) * cos(horizontalAngle)
+	);
+}
+
+glm::vec3 getPlayerPosition() {
+	return position;
+}
